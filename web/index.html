@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Did the campaign sell?</title>
+<meta name="description" content="Step-by-step incrementality analysis on a simulated store chain: Wilcoxon, K-means, Moran's I and LISA, and a counterfactual.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Did the campaign sell?">
+<meta property="og:description" content="Step-by-step incrementality analysis on a simulated store chain: Wilcoxon, K-means, Moran's I and LISA, and a counterfactual.">
+<meta property="og:image" content="https://roviraplancarte.github.io/og.png">
+<meta property="og:url" content="https://roviraplancarte.github.io/incrementalidad/">
+<meta property="og:image:alt" content="Santiago Rovira, marketing measurement, with a hexagon map of clustered values">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="es_MX">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="alternate" hreflang="en" href="https://roviraplancarte.github.io/incrementalidad/">
+<link rel="alternate" hreflang="es" href="https://roviraplancarte.github.io/es/incrementalidad/">
+<link rel="alternate" hreflang="x-default" href="https://roviraplancarte.github.io/incrementalidad/">
+
+<link rel="preload" href="../fonts/source-serif-4-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<link rel="stylesheet" href="demo.css">
+<noscript><style>#verdict, #estado, figure, details, p.stat[id], #seg-table, #truth-text { display: none !important; }</style></noscript>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="page">
+  <div class="toprow">
+    <nav class="topnav" aria-label="Site"><a href="../">Santiago Rovira</a><a href="../engineering/">Engineering</a><a href="../statistics/">Statistics</a></nav>
+    <nav class="lang" aria-label="Language"><span aria-current="true" lang="en" aria-label="English (EN)">EN</span><a href="../es/incrementalidad/" hreflang="es" lang="es" aria-label="Español (ES)">ES</a></nav>
+  </div>
+
+  <header>
+    <div class="label">Incrementality · simulated store chain</div>
+    <h1>Did the campaign sell?</h1>
+    <p class="lede">Sales went up during the campaign. This walks through how I check how much of that the campaign
+      caused, where it worked and how sure we can be. The data is simulated, so at the end we can compare the
+      estimate with the true effect.</p>
+    <div class="verdict" id="verdict">
+      <div><strong id="v-est">…</strong><span>estimated lift in campaign cities</span></div>
+      <div><strong id="v-true">…</strong><span>true lift (known because it's simulated)</span></div>
+      <div><strong id="v-moran">…</strong><span>Moran's I: the effect clusters</span></div>
+    </div>
+    <p class="stat" id="estado" role="status">Loading results…</p>
+    <noscript><p class="stat">This page needs JavaScript to draw its charts.</p></noscript>
+  </header>
+
+  <main id="main">
+  <section id="step-1">
+    <div class="label">1 · The setup</div>
+    <div class="body">
+      <h2>Half the cities got the campaign, half didn't</h2>
+      <p id="setup-text">160 stores in 16 cities. The campaign ran for 4 weeks in 8 cities picked at random (80 stores); the
+        other 8 cities are the control group. Picking cities rather than stores keeps the campaign from spilling into
+        control stores nearby.</p>
+      <figure>
+        <div class="legend"><span><i style="background:var(--c1)"></i>Campaign city store</span><span><i style="background:var(--c3)"></i>Control city store</span></div>
+        <div class="chart" id="map-setup" data-label="Map of the 160 stores, colored by campaign or control city" style="aspect-ratio: 640 / 520"></div>
+        <figcaption>Store locations in a fictional 100 × 80 km region. Hover or tap a store for its numbers; every
+          store is also in the table at the end of the page.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="step-2">
+    <div class="label">2 · Is the lift real?</div>
+    <div class="body">
+      <h2>Campaign stores moved, control stores didn't</h2>
+      <p>For each store I compare average daily sales during the campaign with the 12 weeks before, and subtract the
+        typical change in control stores. That removes what happened to the whole chain anyway (season, weekdays,
+        a general trend). Per-store lift is skewed, so I use rank tests that don't assume a normal distribution.</p>
+      <p class="stat" id="tests"></p>
+      <figure>
+        <div class="chart" id="strip" data-label="Lift per store for campaign and control stores, with group medians" style="aspect-ratio: 640 / 210"></div>
+        <figcaption>Each dot is a store; the vertical tick is the median of its group.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="step-3">
+    <div class="label">3 · Where it came from</div>
+    <div class="body">
+      <h2>One store in nine carried more than 40% of the effect</h2>
+      <p>K-means groups campaign stores by their lift and their size. The point is practical: when a large share
+        of the effect comes from a few stores, the next budget should look at what those stores have in common.</p>
+      <figure>
+        <div class="legend" id="seg-legend"></div>
+        <div class="chart" id="segments" data-label="Campaign stores by baseline sales and lift, colored by segment" style="aspect-ratio: 640 / 340"></div>
+        <figcaption>Baseline daily sales on a log scale against lift.</figcaption>
+      </figure>
+      <table id="seg-table" aria-label="Segments"></table>
+    </div>
+  </section>
+
+  <section id="step-4">
+    <div class="label">4 · Does it cluster?</div>
+    <div class="body">
+      <h2>The effect has a geography</h2>
+      <p>Moran's I measures whether stores with high lift sit next to other stores with high lift (each store is
+        compared with its six nearest neighbors). LISA does the same store by store and marks the ones that are
+        part of a significant cluster, using 999 random reshuffles as the baseline.</p>
+      <p class="stat" id="moran"></p>
+      <figure>
+        <div class="legend"><span><i style="background:var(--c2)"></i>High-High cluster (p &lt; 0.05)</span><span><i style="background:transparent; box-shadow: inset 0 0 0 1.5px var(--ns)"></i>Not significant</span></div>
+        <div class="chart" id="map-lisa" data-label="Map of campaign stores, highlighting the High-High cluster" style="aspect-ratio: 640 / 520"></div>
+        <figcaption>Campaign stores only.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="step-5">
+    <div class="label">5 · How much?</div>
+    <div class="body">
+      <h2>What sales would have been without the campaign</h2>
+      <p>Before the campaign, total daily sales in campaign cities track control cities closely. I fit that
+        relationship on the 12 weeks before, then use control sales during the campaign to predict what campaign
+        cities would have sold without it. The gap is the effect; the interval comes from resampling the
+        pre-campaign errors. This is the idea behind Causal Impact, written as a plain regression.</p>
+      <p class="stat" id="cf-text"></p>
+      <figure>
+        <div class="legend"><span><i class="line" style="background:var(--c1)"></i>Actual sales, campaign cities</span><span><i class="dash"></i>Predicted without campaign</span></div>
+        <div class="chart" id="series" data-label="Daily sales in campaign cities, actual and predicted without the campaign" style="aspect-ratio: 640 / 300"></div>
+        <figcaption>Daily units, thousands. The shaded weeks are the campaign.</figcaption>
+      </figure>
+      <details id="daily-details">
+        <summary>Daily sales as a table</summary>
+        <div class="scroll"><table id="daily-table" aria-label="Daily sales"></table></div>
+      </details>
+    </div>
+  </section>
+
+  <section id="step-6">
+    <div class="label">6 · Check</div>
+    <div class="body">
+      <h2>Against the true effect</h2>
+      <p id="truth-text"></p>
+      <details id="store-details">
+        <summary>All 160 stores as a table</summary>
+        <div class="scroll"><table id="store-table" aria-label="Stores"></table></div>
+      </details>
+    </div>
+  </section>
+
+  <p class="next"><a class="more" href="../rutas-2020/">Next: food-aid routes for four brigades</a></p>
+  </main>
+
+  <footer>Simulated data, seed 20260412. Analysis in <code>analisis.py</code> (Python, NumPy, SciPy, scikit-learn), written from scratch. No cookies, no analytics.</footer>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
